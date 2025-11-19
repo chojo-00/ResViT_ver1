@@ -310,6 +310,12 @@ class ART_block(nn.Module):
                                          bias=use_bias),
                       norm_layer(ngf * 4),
                       nn.ReLU(True)]
+            model += [nn.ConvTranspose2d(ngf * 4, ngf * 4,
+                                         kernel_size=3, stride=2,
+                                         padding=1, output_padding=1,
+                                         bias=use_bias),
+                      norm_layer(ngf * 4),
+                      nn.ReLU(True)]                      
             setattr(self, 'upsample', nn.Sequential(*model))
             #Channel compression
             self.cc = channel_compression(ngf * 8, ngf * 4)

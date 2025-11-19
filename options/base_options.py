@@ -45,6 +45,8 @@ class BaseOptions():
         self.parser.add_argument('--pre_trained_path', type=str,default='./checkpoints/T1_T2_PD_IXI/latest_net_G.pth',help='path to the pre-trained resnet architecture')
         self.parser.add_argument('--pre_trained_transformer', type=int, default=1,help='Pre-trained ViT or not')
         self.parser.add_argument('--pre_trained_resnet', type=int, default=0,help='Pre-trained residual CNNs or not')
+        self.parser.add_argument('--src', type=str, default='80kev,84kev,90kev,100kev,110kev,125kev', help='comma-separated list of source directories')
+        self.parser.add_argument('--trg', type=str, default='70kev', help='comma-separated list of target directories')
 
         self.initialized = True
 

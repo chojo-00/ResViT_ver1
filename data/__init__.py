@@ -21,10 +21,15 @@ def CreateDataset(opt):
         elif opt.dataset_mode == 'single':
             from data.single_dataset import SingleDataset
             dataset = SingleDataset()
+        elif opt.dataset_mode == 'dect_paired':
+            from data.dect_dataset import DectDataset
+            dataset = DectDataset()
         else:
             raise ValueError("Dataset [%s] not recognized." % opt.dataset_mode)  
             print("dataset [%s] was created" % (dataset.name()))
         dataset.initialize(opt)
+
+        
          
     #custom data loader    
     if opt.dataset_mode == 'aligned_mat' or opt.dataset_mode == 'unaligned_mat':   

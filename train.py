@@ -4,7 +4,7 @@ from data import CreateDataLoader
 from models import create_model
 from util.visualizer import Visualizer
 import numpy as np, h5py 
-from skimage.measure import compare_psnr as psnr
+from skimage.metrics import peak_signal_noise_ratio as psnr
 import os
 def print_log(logger,message):
     print(message, flush=True)
@@ -37,6 +37,8 @@ if __name__ == '__main__':
     model = create_model(opt)
     visualizer = Visualizer(opt)
     total_steps = 0
+    
+    print("start training")
 
     for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
         epoch_start_time = time.time()
@@ -59,7 +61,7 @@ if __name__ == '__main__':
                 if opt.dataset_mode=='aligned_mat':
                     temp_visuals=model.get_current_visuals()
                     visualizer.display_current_results(temp_visuals, epoch, save_result)
-                elif  opt.dataset_mode=='unaligned_mat':   
+                elif opt.dataset_mode=='unaligned_mat':   
                     temp_visuals=model.get_current_visuals()
                     temp_visuals['real_A']=temp_visuals['real_A'][:,:,0:3]
                     temp_visuals['real_B']=temp_visuals['real_B'][:,:,0:3]
@@ -70,11 +72,11 @@ if __name__ == '__main__':
                     if opt.lambda_identity>0:
                       temp_visuals['idt_A']=temp_visuals['idt_A'][:,:,0:3]
                       temp_visuals['idt_B']=temp_visuals['idt_B'][:,:,0:3]                    
-                    visualizer.display_current_results(temp_visuals, epoch, save_result)                    
+                    visualizer.display_current_results(temp_visuals, epoch, save_result)
                 else:
                     temp_visuals=model.get_current_visuals()
                     visualizer.display_current_results(temp_visuals, epoch, save_result)                    
-                    
+
 
             if total_steps % opt.print_freq == 0:
                 errors = model.get_current_errors()

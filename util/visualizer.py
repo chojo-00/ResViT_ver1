@@ -4,8 +4,7 @@ import ntpath
 import time
 from . import util
 from . import html
-from scipy.misc import imresize
-
+from PIL import Image
 
 class Visualizer():
     def __init__(self, opt):
@@ -137,14 +136,22 @@ class Visualizer():
         for label, im in visuals.items():
             image_name = '%s_%s.png' % (name, label)
             save_path = os.path.join(image_dir, image_name)
+            
+            # NumPy 배열을 PIL 이미지로 변환
+            pil_im = Image.fromarray(im)
             h, w, _ = im.shape
+            
+            # PIL의 resize 함수는 (너비, 높이) 순서로 인자를 받습니다.
             if aspect_ratio > 1.0:
-                im = imresize(im, (h, int(w * aspect_ratio)), interp='bicubic')
+                pil_im = pil_im.resize((int(w * aspect_ratio), h), Image.BICUBIC)
             if aspect_ratio < 1.0:
-                im = imresize(im, (int(h / aspect_ratio), w), interp='bicubic')
-            util.save_image(im, save_path)
+                pil_im = pil_im.resize((w, int(h / aspect_ratio)), Image.BICUBIC)
+            
+            # util.save_image 대신 PIL 객체에서 바로 저장
+            pil_im.save(save_path)
 
-            ims.append(image_name)
+            ims.append(image_name)            
+        
             txts.append(label)
             links.append(image_name)
         webpage.add_images(ims, txts, links, width=self.win_size)
