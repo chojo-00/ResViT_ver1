@@ -1,6 +1,6 @@
 import os
 import numpy as np
-import nibabel as nib
+# import nibabel as nib  # NIfTI 변환을 하지 않으므로 주석 처리
 from options.test_options import TestOptions
 from data import CreateDataLoader
 from models import create_model
@@ -88,39 +88,26 @@ def tensor2array(image_tensor, min_hu=-1024.0, max_hu=3071.0):
     return image_numpy
 
 
-def save_ct_image_both_formats(image_array, npy_dir, nii_dir, filename_base):
+def save_ct_image_npy_only(image_array, npy_dir, filename_base):
     """
-    CT 이미지를 numpy와 nifti 형식으로 저장
+    CT 이미지를 numpy 형식으로만 저장
     
     Args:
         image_array: numpy array [H, W] with HU values
         npy_dir: numpy 저장 디렉토리
-        nii_dir: nifti 저장 디렉토리
         filename_base: 파일명 (확장자 제외)
     
     Returns:
-        tuple: (npy_path, nii_path)
+        npy_path
     """
     # 디렉토리 생성
     os.makedirs(npy_dir, exist_ok=True)
-    os.makedirs(nii_dir, exist_ok=True)
     
-    # 1. Numpy 저장 (.npy)
+    # Numpy 저장 (.npy)
     npy_path = os.path.join(npy_dir, f"{filename_base}.npy")
     np.save(npy_path, image_array)
     
-    # 2. NIfTI 저장 (.nii.gz)
-    # 2D 이미지를 3D volume로 변환 [H, W] -> [H, W, 1]
-    nifti_array = np.expand_dims(image_array, axis=-1)
-    
-    # NIfTI 이미지 생성 (affine은 단위 행렬)
-    nifti_img = nib.Nifti1Image(nifti_array, affine=np.eye(4))
-    
-    # 저장
-    nii_path = os.path.join(nii_dir, f"{filename_base}.nii.gz")
-    nib.save(nifti_img, nii_path)
-    
-    return npy_path, nii_path
+    return npy_path
 
 
 if __name__ == '__main__':
@@ -156,19 +143,17 @@ if __name__ == '__main__':
     results_base = os.path.join(opt.results_dir, opt.name, 
                                 f'{opt.phase}_{opt.which_epoch}')
     
-    # npy와 nii 각각의 base 디렉토리
+    # npy base 디렉토리
     npy_base = os.path.join(results_base, 'npy')
-    nii_base = os.path.join(results_base, 'nii')
     
     print(f"{'='*80}")
-    print(f"🧪 Testing {opt.name}")
+    print(f"🧪 Testing {opt.name} (Numpy Output Only)")
     print(f"{'='*80}")
     print(f"Source keV: {src_list}")
     print(f"Target keV: {opt.trg}")
     print(f"Total samples to test: {min(opt.how_many, len(dataset))}")
     print(f"Results directory: {results_base}")
     print(f"  - Numpy:  {npy_base}")
-    print(f"  - NIfTI:  {nii_base}")
     print(f"{'='*80}\n")
     
     # 통계
@@ -215,21 +200,14 @@ if __name__ == '__main__':
         npy_real_B_dir = os.path.join(npy_patient_dir, 'real_B')
         npy_fake_B_dir = os.path.join(npy_patient_dir, 'fake_B')
         
-        # nii 경로
-        nii_kev_dir = os.path.join(nii_base, source_kev)
-        nii_patient_dir = os.path.join(nii_kev_dir, patient_id)
-        nii_real_A_dir = os.path.join(nii_patient_dir, 'real_A')
-        nii_real_B_dir = os.path.join(nii_patient_dir, 'real_B')
-        nii_fake_B_dir = os.path.join(nii_patient_dir, 'fake_B')
-        
-        # 저장 (npy + nii)
-        save_ct_image_both_formats(real_A, npy_real_A_dir, nii_real_A_dir, filename_base)
-        save_ct_image_both_formats(real_B, npy_real_B_dir, nii_real_B_dir, filename_base)
-        save_ct_image_both_formats(fake_B, npy_fake_B_dir, nii_fake_B_dir, filename_base)
+        # 저장 (npy만)
+        save_ct_image_npy_only(real_A, npy_real_A_dir, filename_base)
+        save_ct_image_npy_only(real_B, npy_real_B_dir, filename_base)
+        save_ct_image_npy_only(fake_B, npy_fake_B_dir, filename_base)
     
     # 최종 통계
     print(f"\n{'='*80}")
-    print(f"✅ Testing Complete!")
+    print(f"✅ Testing Complete (Numpy Only)!")
     print(f"{'='*80}")
     print(f"\n📊 Statistics by Source keV:")
     print(f"{'-'*80}")
@@ -249,18 +227,6 @@ if __name__ == '__main__':
     
     print(f"{'-'*80}")
     print(f"{'Total':<12} {len(all_patients):<15} {total_slices:<10}")
-    print(f"\n📁 Results saved to: {results_base}")
-    print(f"   ├── npy/  (numpy arrays)")
-    print(f"   └── nii/  (NIfTI format)")
-    print(f"\n💾 File formats:")
-    print(f"   - .npy:    Numpy arrays with original HU values [{MIN_HU}, {MAX_HU}]")
-    print(f"   - .nii.gz: NIfTI format for medical imaging software (ITK-SNAP, 3D Slicer)")
-    print(f"\n💡 Example paths:")
-    print(f"   {npy_base}/80keV/PE001/real_A/PE001_0001.npy")
-    print(f"   {nii_base}/80keV/PE001/fake_B/PE001_0001.nii.gz")
+    print(f"\n📁 Results saved to: {npy_base}")
     print(f"\n💡 To load:")
-    print(f"   # Numpy")
     print(f"   img = np.load('PE001_0001.npy')  # Shape: [H, W], dtype: float32")
-    print(f"   # NIfTI")
-    print(f"   nii = nib.load('PE001_0001.nii.gz')")
-    print(f"   img = nii.get_fdata()  # Shape: [H, W, 1]")
