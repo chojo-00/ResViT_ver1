@@ -1,11 +1,11 @@
 import os
 import numpy as np
-# import nibabel as nib  # NIfTI 변환을 하지 않으므로 주석 처리
+import nibabel as nib  # NIfTI 변환을 하지 않으므로 주석 처리
 from options.test_options import TestOptions
 from data import CreateDataLoader
 from models import create_model
 import re
-
+import pydicom
 
 def parse_filename(filepath):
     """
@@ -88,6 +88,57 @@ def tensor2array(image_tensor, min_hu=-1024.0, max_hu=3071.0):
     return image_numpy
 
 
+def save_dicom(dcm_path, hu_numpy_array, save_path):
+    """
+    Original DICOM 헤더를 읽어와서 생성된 이미지(HU)를 덮어쓰고 저장
+    Args:
+        dcm_path: 원본 DICOM 파일 경로 (헤더 정보용)
+        hu_numpy_array: 모델이 생성한 HU 값을 가진 Numpy 배열 (fake_B)
+        save_path: 저장할 경로 (.dcm)
+    """
+    # 원본 DICOM 읽기
+    try:
+        dcm = pydicom.dcmread(dcm_path, force=True)
+    except Exception as e:
+        print(f"Failed to read reference DICOM: {dcm_path}, Error: {e}")
+        return
+
+    # Rescale Intercept/Slope 적용하여 Raw Pixel 값으로 역변환
+    # HU = PixelValue * Slope + Intercept
+    # PixelValue = (HU - Intercept) / Slope
+    intercept = dcm.RescaleIntercept
+    slope = dcm.RescaleSlope
+    
+    # 원본 배열 보존을 위해 복사
+    predict_img = hu_numpy_array.copy()
+    
+    predict_img -= np.float32(intercept)
+    if slope != 1:
+        predict_img = predict_img.astype(np.float32) / slope
+    
+    # 정수형 변환 (반올림)
+    predict_img = np.round(predict_img).astype(np.int16)
+
+    # DICOM 태그 업데이트
+    dcm.file_meta.TransferSyntaxUID = pydicom.uid.ExplicitVRLittleEndian
+    dcm.PixelData = predict_img.tobytes()
+    dcm.Rows, dcm.Columns = predict_img.shape
+
+    # 픽셀 값 범위 업데이트
+    dcm.SmallestImagePixelValue = int(predict_img.min())
+    dcm.LargestImagePixelValue = int(predict_img.max())
+    
+    # Pixel Representation 등을 업데이트 (Unsigned/Signed 처리)
+    # CT는 보통 Signed Short (SS)를 쓰지만, 코드 예시대로 US(Unsigned Short)로 강제할 경우:
+    dcm[0x0028,0x0106].VR = 'SS' 
+    dcm[0x0028,0x0107].VR = 'SS'
+    
+    
+    # 폴더가 없으면 생성 후 저장
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    dcm.save_as(save_path)
+
+
 def save_ct_image_npy_only(image_array, npy_dir, filename_base):
     """
     CT 이미지를 numpy 형식으로만 저장
@@ -143,9 +194,10 @@ if __name__ == '__main__':
     results_base = os.path.join(opt.results_dir, opt.name, 
                                 f'{opt.phase}_{opt.which_epoch}')
     
-    # npy base 디렉토리
+    # npy,dcm base 디렉토리
     npy_base = os.path.join(results_base, 'npy')
-    
+    dcm_base = os.path.join(results_base, 'dcm') 
+
     print(f"{'='*80}")
     print(f"🧪 Testing {opt.name} (Numpy Output Only)")
     print(f"{'='*80}")
@@ -192,6 +244,14 @@ if __name__ == '__main__':
         real_B = tensor2array(model.real_B.data, MIN_HU, MAX_HU)
         fake_B = tensor2array(model.fake_B.data, MIN_HU, MAX_HU)
         
+        # 저장 경로 설정 (예: results/../dcm/80keV/PE001/fake_B/PE001_0001.dcm)
+        dcm_kev_dir = os.path.join(dcm_base, source_kev)
+        dcm_patient_dir = os.path.join(dcm_kev_dir, patient_id, 'fake_B')
+        save_filename = f"{patient_id}_{slice_num}.dcm"
+        save_path = os.path.join(dcm_patient_dir, save_filename)
+        # 저장 (DICOM)
+        save_dicom(img_path, fake_B, save_path)
+
         # 디렉토리 구조 생성
         # npy 경로
         npy_kev_dir = os.path.join(npy_base, source_kev)
@@ -200,7 +260,7 @@ if __name__ == '__main__':
         npy_real_B_dir = os.path.join(npy_patient_dir, 'real_B')
         npy_fake_B_dir = os.path.join(npy_patient_dir, 'fake_B')
         
-        # 저장 (npy만)
+        # 저장 (npy)
         save_ct_image_npy_only(real_A, npy_real_A_dir, filename_base)
         save_ct_image_npy_only(real_B, npy_real_B_dir, filename_base)
         save_ct_image_npy_only(fake_B, npy_fake_B_dir, filename_base)
