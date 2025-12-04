@@ -48,7 +48,8 @@ class ResViT_model(BaseModel):
                 print(f'VGG Perceptual Loss enabled (λ={opt.lambda_perceptual})')
             
             if opt.lambda_lpips > 0:
-                self.criterionLPIPS = lpips.LPIPS(net='alex')  # or 'vgg'
+                self.criterionLPIPS = lpips.LPIPS(net='alex')
+                self.criterionLPIPS.eval()
                 if len(self.gpu_ids) > 0:
                     self.criterionLPIPS.cuda(self.gpu_ids[0])
                 print(f'LPIPS Loss enabled (λ={opt.lambda_lpips})')

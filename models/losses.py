@@ -13,7 +13,9 @@ class VGGPerceptualLoss(nn.Module):
         
         for param in self.parameters():
             param.requires_grad = False
-    
+
+        self.eval()
+
 
     def forward(self, x, y):
         # Step 1: [-1, 1] → [0, 1] 변환
