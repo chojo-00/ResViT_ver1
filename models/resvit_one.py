@@ -6,6 +6,9 @@ from util.image_pool import ImagePool
 from .base_model import BaseModel
 from . import networks
 from torchvision import models
+from .losses import VGGPerceptualLoss, MSSSIMLoss  
+import lpips  
+
 
 class ResViT_model(BaseModel):
     def name(self):
@@ -37,6 +40,24 @@ class ResViT_model(BaseModel):
             # define loss functions
             self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan, tensor=self.Tensor)
             self.criterionL1 = torch.nn.L1Loss()
+            # 추가 loss functions (조건부 초기화)
+            if opt.lambda_perceptual > 0:
+                self.criterionPerceptual = VGGPerceptualLoss()
+                if len(self.gpu_ids) > 0:
+                    self.criterionPerceptual.cuda(self.gpu_ids[0])
+                print(f'VGG Perceptual Loss enabled (λ={opt.lambda_perceptual})')
+            
+            if opt.lambda_lpips > 0:
+                self.criterionLPIPS = lpips.LPIPS(net='alex')  # or 'vgg'
+                if len(self.gpu_ids) > 0:
+                    self.criterionLPIPS.cuda(self.gpu_ids[0])
+                print(f'LPIPS Loss enabled (λ={opt.lambda_lpips})')
+            
+            if opt.lambda_msssim > 0:
+                self.criterionMSSSIM = MSSSIMLoss()
+                print(f'MS-SSIM Loss enabled (λ={opt.lambda_msssim})')
+
+
             # initialize optimizers
             self.schedulers = []
             self.optimizers = []
@@ -108,10 +129,30 @@ class ResViT_model(BaseModel):
         self.loss_G_GAN = self.criterionGAN(pred_fake, True)*self.opt.lambda_adv
         # Second, G(A) = B
         self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B) * self.opt.lambda_A
-        self.loss_G = self.loss_G_GAN + self.loss_G_L1*1
+
+        # VGG Perceptual loss (선택적)
+        if self.opt.lambda_perceptual > 0:
+            self.loss_G_perceptual = self.criterionPerceptual(self.fake_B, self.real_B) * self.opt.lambda_perceptual
+        else:
+            self.loss_G_perceptual = 0
+        
+        # LPIPS loss (선택적)
+        if self.opt.lambda_lpips > 0:
+            self.loss_G_lpips = self.criterionLPIPS(self.fake_B, self.real_B).mean() * self.opt.lambda_lpips
+        else:
+            self.loss_G_lpips = 0
+        
+        # MS-SSIM loss (선택적)
+        if self.opt.lambda_msssim > 0:
+            self.loss_G_msssim = self.criterionMSSSIM(self.fake_B, self.real_B) * self.opt.lambda_msssim
+        else:
+            self.loss_G_msssim = 0
+        
+        # Total loss
+        self.loss_G = self.loss_G_GAN + self.loss_G_L1 + self.loss_G_perceptual + self.loss_G_lpips + self.loss_G_msssim
         
         self.loss_G.backward()
-
+        
     def optimize_parameters(self):
         self.forward()
 
@@ -123,13 +164,26 @@ class ResViT_model(BaseModel):
         self.backward_G()
         self.optimizer_G.step()
 
-    def get_current_errors(self):
-        return OrderedDict([('G_GAN', self.loss_G_GAN.item()),
-                            ('G_L1', self.loss_G_L1.item()),
-                            ('D_real', self.loss_D_real.item()),
-                            ('D_fake', self.loss_D_fake.item())
 
-                            ])
+    def get_current_errors(self):
+        errors = OrderedDict([
+            ('G_GAN', self.loss_G_GAN.item()),
+            ('G_L1', self.loss_G_L1.item()),
+            ('D_real', self.loss_D_real.item()),
+            ('D_fake', self.loss_D_fake.item())
+        ])
+        
+        # 활성화된 loss만 추가
+        if self.opt.lambda_perceptual > 0:
+            errors['G_perceptual'] = self.loss_G_perceptual.item()
+        if self.opt.lambda_lpips > 0:
+            errors['G_lpips'] = self.loss_G_lpips.item()
+        if self.opt.lambda_msssim > 0:
+            errors['G_msssim'] = self.loss_G_msssim.item()
+        
+        return errors
+
+                            
 
     def get_current_visuals(self):
         real_A = util.tensor2im(self.real_A.data)

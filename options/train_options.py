@@ -36,3 +36,11 @@ class TrainOptions(BaseOptions):
         self.parser.add_argument('--lambda_vgg', type=float, default=1.0, help='weight for vgg loss')
         self.parser.add_argument('--vgg_layer', type=float, default=2, help='layer of vgg for perc loss')
         self.parser.add_argument('--lambda_adv', type=float, default=1.0, help='weight for adversarial loss')
+
+
+        self.parser.add_argument('--lambda_perceptual', type=float, default=0.0, 
+                                help='weight for VGG perceptual loss (0 = disabled)')
+        self.parser.add_argument('--lambda_lpips', type=float, default=0.0, 
+                                help='weight for LPIPS loss (0 = disabled)')
+        self.parser.add_argument('--lambda_msssim', type=float, default=0.0, 
+                                help='weight for MS-SSIM loss (0 = disabled)')
