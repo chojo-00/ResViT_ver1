@@ -1,3 +1,6 @@
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
+
 import time
 from options.train_options import TrainOptions
 from data import CreateDataLoader

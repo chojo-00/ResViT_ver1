@@ -60,11 +60,16 @@ def CreateDataset(opt):
         if  len(data_y.shape)<4:
             data_y=np.expand_dims(data_y,0)            
         dataset=[]
+        print(f"Total samples to load: {data_x.shape[1]}")
         for train_sample in range(data_x.shape[1]):
+            # 100장마다 로그 출력
+            if train_sample % 100 == 0:
+                print(f"Loading sample {train_sample}/{data_x.shape[1]}...")
+            
             data_x[:,train_sample,:,:]=(data_x[:,train_sample,:,:]-0.5)/0.5
             data_y[:,train_sample,:,:]=(data_y[:,train_sample,:,:]-0.5)/0.5
-            dataset.append({'A': torch.from_numpy(data_x[:,train_sample,:,:]), 'B':torch.from_numpy(data_y[:,train_sample,:,:]), 
-            'A_paths':opt.dataroot, 'B_paths':opt.dataroot})
+            dataset.append({'A': torch.from_numpy(data_x[:,train_sample,:,:]), 'B':torch.from_numpy(data_y[:,train_sample,:,:]), 'A_paths':opt.dataroot, 'B_paths':opt.dataroot})
+        print("Data loading complete!")
         print('#training images = %d' % train_sample)
         print(data_x.shape)
         print(data_y.shape)        
