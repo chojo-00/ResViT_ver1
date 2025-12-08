@@ -274,30 +274,6 @@ class ResnetBlock(nn.Module):
         out = x + self.conv_block(x)
         return out
 
-
-
-class SEBlock(nn.Module):
-    """Squeeze-and-Excitation Block"""
-    def __init__(self, channels, reduction=16):
-        super(SEBlock, self).__init__()
-        self.squeeze = nn.AdaptiveAvgPool2d(1)  # Global Average Pooling
-        self.excitation = nn.Sequential(
-            nn.Linear(channels, channels // reduction, bias=False),
-            nn.ReLU(inplace=True),
-            nn.Linear(channels // reduction, channels, bias=False),
-            nn.Sigmoid()
-        )
-    
-    def forward(self, x):
-        B, C, H, W = x.size()
-        # Squeeze: [B, C, H, W] → [B, C]
-        y = self.squeeze(x).view(B, C)
-        # Excitation: [B, C] → [B, C]
-        y = self.excitation(y).view(B, C, 1, 1)
-        # Scale: element-wise multiplication
-        return x * y.expand_as(x)
-
-
 class ART_block(nn.Module):
     def __init__(self,config, input_dim, img_size=224,transformer = None):
         super(ART_block, self).__init__()
@@ -343,7 +319,6 @@ class ART_block(nn.Module):
             setattr(self, 'upsample', nn.Sequential(*model))
             #Channel compression
             self.cc = channel_compression(ngf * 8, ngf * 4)
-            self.se = SEBlock(channels=ngf * 8, reduction=16)
         # Residual CNN
         model = [ResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer, use_dropout=False,
                              use_bias=use_bias)]
@@ -365,8 +340,6 @@ class ART_block(nn.Module):
             transformer_out = self.upsample(transformer_out)
             # concat transformer output and resnet output
             x = torch.cat([transformer_out, x], dim=1)
-            # SE 적용
-            x = self.se(x)
             # channel compression
             x = self.cc(x)
         # residual CNN
